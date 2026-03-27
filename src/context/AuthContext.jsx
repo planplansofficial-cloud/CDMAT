@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { databases, DATABASE_ID, COLLECTION_USERS, Query, sanitizeId } from "../appwrite";
+import { databases, DATABASE_ID, COLLECTION_USERS, Query } from "../appwrite";
+import { hashPassword } from "../utils/crypto";
 
 const AuthContext = createContext(null);
 
@@ -31,8 +32,9 @@ export function AuthProvider({ children }) {
     }
 
     const userDoc = result.documents[0];
+    const hashedInput = await hashPassword(password);
 
-    if (userDoc.password !== password) {
+    if (userDoc.password !== hashedInput) {
       throw new Error("Invalid credentials");
     }
 

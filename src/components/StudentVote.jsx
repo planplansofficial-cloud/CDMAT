@@ -4,6 +4,7 @@ import { Client } from "appwrite";
 import { useAuth } from "../context/AuthContext";
 import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG, ID, Query, sanitizeId, getPhotoUrl } from "../appwrite";
 import { validateVote } from "../utils/validate";
+import { hashChoiceId, hashUserId } from "../utils/crypto";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
 
@@ -23,11 +24,19 @@ function StudentVote() {
   const [voted, setVoted] = useState(false);
   const [pollClosed, setPollClosed] = useState(false);
 
+  const parseOptions = (poll) => {
+    if (typeof poll.options === "string") {
+      try { return JSON.parse(poll.options); } catch { return []; }
+    }
+    return poll.options || [];
+  };
+
   useEffect(() => {
     const loadPoll = async () => {
       try {
         const doc = await databases.getDocument(DATABASE_ID, COLLECTION_POLLS, pollId);
         const data = { id: doc.$id, ...doc };
+        data.options = parseOptions(data);
         setPoll(data);
         if (data.status === "closed" || data.status === "revealed") {
           setPollClosed(true);
@@ -95,6 +104,9 @@ function StudentVote() {
         ? `${selected.name} (Roll ${selected.roll})`
         : selected.text;
 
+      const hashedChoiceId = await hashChoiceId(selected.id, pollId);
+      const hashedUserHash = await hashUserId(user.id);
+
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_VOTES,
@@ -102,7 +114,7 @@ function StudentVote() {
         {
           userId: user.id,
           pollId: pollId,
-          choiceId: selected.id,
+          choiceId: hashedChoiceId,
           timestamp: new Date().toISOString(),
         }
       );
@@ -112,10 +124,10 @@ function StudentVote() {
         COLLECTION_VOTE_LOG,
         ID.unique(),
         {
-          userHash: btoa(user.id).slice(0, 8),
+          userHash: hashedUserHash,
           pollId: pollId,
           pollTitle: poll.title,
-          choiceId: selected.id,
+          choiceId: hashedChoiceId,
           choiceLabel: choiceLabel,
           timestamp: new Date().toISOString(),
         }
