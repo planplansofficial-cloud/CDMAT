@@ -82,24 +82,33 @@ function AdminDashboard() {
   useEffect(() => {
     loadAll();
 
-    const client = new Client()
-      .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-      .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+    let unsub1, unsub2, unsub3;
+    try {
+      const client = new Client()
+        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
+        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
 
-    const unsub1 = client.subscribe(
-      `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
-      () => loadAll()
-    );
-    const unsub2 = client.subscribe(
-      `databases.${DATABASE_ID}.collections.${COLLECTION_USERS}.documents`,
-      () => loadAll()
-    );
-    const unsub3 = client.subscribe(
-      `databases.${DATABASE_ID}.collections.${COLLECTION_VOTE_LOG}.documents`,
-      () => loadAll()
-    );
+      unsub1 = client.subscribe(
+        `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
+        () => loadAll()
+      );
+      unsub2 = client.subscribe(
+        `databases.${DATABASE_ID}.collections.${COLLECTION_USERS}.documents`,
+        () => loadAll()
+      );
+      unsub3 = client.subscribe(
+        `databases.${DATABASE_ID}.collections.${COLLECTION_VOTE_LOG}.documents`,
+        () => loadAll()
+      );
+    } catch {
+      // Realtime unavailable — data refreshes on manual actions
+    }
 
-    return () => { unsub1(); unsub2(); unsub3(); };
+    return () => {
+      if (typeof unsub1 === "function") unsub1();
+      if (typeof unsub2 === "function") unsub2();
+      if (typeof unsub3 === "function") unsub3();
+    };
   }, []);
 
   const handleSeed = async () => {
@@ -472,7 +481,7 @@ function AdminDashboard() {
                           <div className="flex-shrink-0">
                             {c.photoUrl ? (
                               <div className="relative">
-                                <img src={getPhotoUrl(c.photoUrl)} alt={c.name} className="w-16 h-16 rounded-full object-cover border border-gold/30" />
+                                <img src={getPhotoUrl(c.photoUrl)} alt={c.name} className="w-16 h-16 rounded-full object-cover border border-gold/30" onError={(e) => { e.target.style.display = "none"; }} />
                                 <button onClick={() => updateCandidate(i, "photoUrl", "")} className="absolute -top-1 -right-1 w-5 h-5 bg-crimson rounded-full text-white text-xs flex items-center justify-center hover:bg-red-700">&times;</button>
                               </div>
                             ) : (

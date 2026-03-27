@@ -27,5 +27,9 @@ export function sanitizeId(id) {
 
 export function getPhotoUrl(fileId) {
   if (!fileId) return "";
-  return storage.getFilePreview(BUCKET_PHOTOS, fileId).toString();
+  try {
+    return storage.getFilePreview(BUCKET_PHOTOS, fileId).toString();
+  } catch {
+    return "";
+  }
 }

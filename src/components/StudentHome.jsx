@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Client } from "appwrite";
 import { useAuth } from "../context/AuthContext";
-import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, Query, sanitizeId } from "../appwrite";
+import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, Query } from "../appwrite";
+import { generateVoteId } from "../utils/crypto";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
 
@@ -25,20 +26,25 @@ function StudentHome() {
     };
     loadPolls();
 
-    const client = new Client()
-      .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-      .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
-    clientRef.current = client;
+    let unsub;
+    try {
+      const client = new Client()
+        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
+        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+      clientRef.current = client;
 
-    const unsubscribe = client.subscribe(
-      `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
-      (response) => {
-        loadPolls();
-      }
-    );
+      unsub = client.subscribe(
+        `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
+        () => {
+          loadPolls();
+        }
+      );
+    } catch {
+      // Realtime unavailable
+    }
 
     return () => {
-      unsubscribe();
+      if (typeof unsub === "function") unsub();
     };
   }, []);
 
@@ -47,10 +53,10 @@ function StudentHome() {
       const voted = new Set();
       for (const poll of polls) {
         try {
-          const voteId = sanitizeId(`${user.id}_${poll.id}`);
+          const voteId = await generateVoteId(user.id, poll.id);
           await databases.getDocument(DATABASE_ID, COLLECTION_VOTES, voteId);
           voted.add(poll.id);
-        } catch (e) {
+        } catch {
           // not voted
         }
       }
