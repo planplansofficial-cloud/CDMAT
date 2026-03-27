@@ -4,6 +4,7 @@ import { Client } from "appwrite";
 import { useAuth } from "../context/AuthContext";
 import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, Query } from "../appwrite";
 import { generateVoteId } from "../utils/crypto";
+import { getUserGroup } from "../utils/groups";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
 
@@ -67,9 +68,27 @@ function StudentHome() {
     }
   }, [polls, user]);
 
-  const activePolls = polls.filter((p) => p.status === "open" && !votedPolls.has(p.id));
-  const votedPollList = polls.filter((p) => votedPolls.has(p.id) && p.status !== "revealed");
-  const revealedPolls = polls.filter((p) => p.status === "revealed" && votedPolls.has(p.id));
+  const parseAllowedGroups = (poll) => {
+    let raw = poll.options;
+    if (typeof raw === "string") {
+      try { raw = JSON.parse(raw); } catch { return ["C", "D"]; }
+    }
+    if (raw && typeof raw === "object" && Array.isArray(raw.allowedGroups)) {
+      return raw.allowedGroups;
+    }
+    return ["C", "D"];
+  };
+
+  const isEligible = (poll) => {
+    if (user.role === "admin") return true;
+    const userGroup = getUserGroup(user.id);
+    const groups = parseAllowedGroups(poll);
+    return !userGroup || groups.length === 0 || groups.includes(userGroup);
+  };
+
+  const activePolls = polls.filter((p) => p.status === "open" && !votedPolls.has(p.id) && isEligible(p));
+  const votedPollList = polls.filter((p) => votedPolls.has(p.id) && p.status !== "revealed" && isEligible(p));
+  const revealedPolls = polls.filter((p) => p.status === "revealed" && votedPolls.has(p.id) && isEligible(p));
 
   const handleLogout = () => {
     logout();
@@ -103,6 +122,7 @@ function StudentHome() {
         <div className="mb-2">
           <h2 className="font-heading text-xl font-semibold text-offwhite">
             Welcome, <span className="text-gold font-mono">{user.id}</span>
+            {getUserGroup(user.id) && <span className="text-muted text-sm ml-2">(Group {getUserGroup(user.id)})</span>}
           </h2>
         </div>
 

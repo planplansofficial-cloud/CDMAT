@@ -7,6 +7,7 @@ import { seedUsers } from "../seed";
 import { validatePollCreate, validatePhotoUpload, sanitizeText } from "../utils/validate";
 import { pollCreateLimiter, uploadLimiter, formatCooldown } from "../utils/rateLimit";
 import { hashPassword, hashUserId } from "../utils/crypto";
+import { getUserGroup } from "../utils/groups";
 import Logo from "./Logo";
 
 function AdminDashboard() {
@@ -25,6 +26,7 @@ function AdminDashboard() {
   const [visibleCount, setVisibleCount] = useState(1);
   const [createError, setCreateError] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(null);
+  const [allowedGroups, setAllowedGroups] = useState(["C", "D"]);
 
   const [polls, setPolls] = useState([]);
   const [users, setUsers] = useState([]);
@@ -222,6 +224,8 @@ function AdminDashboard() {
     }
 
     try {
+      // Embed allowedGroups in the options JSON to avoid schema changes
+      const optionsWithMeta = { options, allowedGroups };
       await databases.createDocument(
         DATABASE_ID,
         COLLECTION_POLLS,
@@ -232,7 +236,7 @@ function AdminDashboard() {
           mode: pollMode,
           status: "draft",
           createdAt: new Date().toISOString(),
-          options: JSON.stringify(options),
+          options: JSON.stringify(optionsWithMeta),
           visibleOptionCount: pollMode === "decision" ? visibleCount : 0,
         }
       );
@@ -243,6 +247,7 @@ function AdminDashboard() {
       setCandidates([{ name: "", roll: "", photoUrl: "" }]);
       setDecisions([{ text: "" }]);
       setVisibleCount(1);
+      setAllowedGroups(["C", "D"]);
       setActiveTab("polls");
     } catch (err) {
       console.error("Create poll failed:", err);
@@ -315,6 +320,17 @@ function AdminDashboard() {
     return map[status] || "badge-draft";
   };
 
+  const parseAllowedGroups = (poll) => {
+    let raw = poll.options;
+    if (typeof raw === "string") {
+      try { raw = JSON.parse(raw); } catch { return ["C", "D"]; }
+    }
+    if (raw && typeof raw === "object" && Array.isArray(raw.allowedGroups)) {
+      return raw.allowedGroups;
+    }
+    return ["C", "D"];
+  };
+
   const getVoteCountForPoll = (pollId) => voteLogs.filter((l) => l.pollId === pollId).length;
   const studentUsers = users.filter((u) => u.role === "student");
   const openPolls = polls.filter((p) => p.status === "open");
@@ -380,6 +396,7 @@ function AdminDashboard() {
                     <tr className="text-left text-muted text-xs font-mono uppercase tracking-wider">
                       <th className="pb-3 pr-4">Title</th>
                       <th className="pb-3 pr-4">Mode</th>
+                      <th className="pb-3 pr-4">Eligible</th>
                       <th className="pb-3 pr-4">Status</th>
                       <th className="pb-3 pr-4">Votes</th>
                       <th className="pb-3">Actions</th>
@@ -396,6 +413,11 @@ function AdminDashboard() {
                           <td className="py-4 pr-4">
                             <span className="font-mono text-xs text-muted">
                               {poll.mode === "candidate" ? "Candidate" : "Decision"}
+                            </span>
+                          </td>
+                          <td className="py-4 pr-4">
+                            <span className="font-mono text-xs text-gold">
+                              {parseAllowedGroups(poll).map((g) => `Grp ${g}`).join(", ") || "All"}
                             </span>
                           </td>
                           <td className="py-4 pr-4">
@@ -470,6 +492,35 @@ function AdminDashboard() {
                 <div>
                   <label className="block text-sm text-muted mb-2 font-mono">Description</label>
                   <textarea value={pollDesc} onChange={(e) => setPollDesc(e.target.value)} className="input-field min-h-[80px] resize-y" placeholder="Optional description..." style={{ fontFamily: "'DM Sans', sans-serif" }} />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-muted mb-2 font-mono">Eligible Voters</label>
+                  <div className="flex gap-3">
+                    {["C", "D"].map((g) => (
+                      <label key={g} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowedGroups.includes(g)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAllowedGroups([...allowedGroups, g]);
+                            } else {
+                              setAllowedGroups(allowedGroups.filter((x) => x !== g));
+                            }
+                          }}
+                          className="w-4 h-4 accent-gold"
+                        />
+                        <span className="text-sm text-offwhite font-mono">Group {g}</span>
+                        <span className="text-xs text-muted">
+                          ({g === "C" ? "49-72" : "73-96"})
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {allowedGroups.length === 0 && (
+                    <p className="text-crimson text-xs mt-1">Select at least one group</p>
+                  )}
                 </div>
 
                 {pollMode === "candidate" ? (
@@ -558,6 +609,7 @@ function AdminDashboard() {
                   <thead>
                     <tr className="text-left text-muted text-xs font-mono uppercase tracking-wider">
                       <th className="pb-3 pr-4">Roll ID</th>
+                      <th className="pb-3 pr-4">Group</th>
                       <th className="pb-3 pr-4">Password Status</th>
                       <th className="pb-3 pr-4">Last Login</th>
                       {openPolls.length > 0 && <th className="pb-3 pr-4">Participation</th>}
@@ -568,6 +620,9 @@ function AdminDashboard() {
                     {studentUsers.map((u) => (
                       <tr key={u.id} className="border-t border-gold/10">
                         <td className="py-3 pr-4 font-mono text-sm text-offwhite">{u.id}</td>
+                        <td className="py-3 pr-4">
+                          <span className="font-mono text-xs text-gold">{getUserGroup(u.id) || "-"}</span>
+                        </td>
                         <td className="py-3 pr-4">
                           {u.hasChangedPassword ? (
                             <span className="text-success text-sm font-mono">Changed</span>

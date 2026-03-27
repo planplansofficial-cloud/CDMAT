@@ -18,7 +18,6 @@ export { ID, Query };
 
 export function sanitizeId(id) {
   const cleaned = id.replace(/[^a-zA-Z0-9._-]/g, "-");
-  // Appwrite document IDs must start with a letter
   if (/^[^a-zA-Z]/.test(cleaned)) {
     return "u" + cleaned;
   }
@@ -32,4 +31,33 @@ export function getPhotoUrl(fileId) {
   } catch {
     return "";
   }
+}
+
+/**
+ * Check which Appwrite collections/buckets exist.
+ * Returns { collections: {name: bool}, bucket: bool }
+ */
+export async function checkSetup() {
+  const result = { collections: {}, bucket: false, errors: [] };
+  const collectionNames = [COLLECTION_USERS, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG];
+
+  for (const name of collectionNames) {
+    try {
+      await databases.listDocuments(DATABASE_ID, name, [Query.limit(1)]);
+      result.collections[name] = true;
+    } catch (err) {
+      result.collections[name] = false;
+      result.errors.push(`Collection "${name}" missing or inaccessible`);
+    }
+  }
+
+  try {
+    await storage.listFiles(BUCKET_PHOTOS);
+    result.bucket = true;
+  } catch {
+    result.bucket = false;
+    result.errors.push(`Storage bucket "${BUCKET_PHOTOS}" missing or inaccessible`);
+  }
+
+  return result;
 }
