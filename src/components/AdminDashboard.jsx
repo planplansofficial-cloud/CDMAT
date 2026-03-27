@@ -332,6 +332,14 @@ function AdminDashboard() {
   };
 
   const getVoteCountForPoll = (pollId) => voteLogs.filter((l) => l.pollId === pollId).length;
+  const getEligibleVoterCount = (poll) => {
+    const groups = parseAllowedGroups(poll);
+    if (groups.length === 0 || groups.length === 2) return studentUsers.length;
+    return studentUsers.filter((u) => {
+      const g = getUserGroup(u.id);
+      return g && groups.includes(g);
+    }).length;
+  };
   const studentUsers = users.filter((u) => u.role === "student");
   const openPolls = polls.filter((p) => p.status === "open");
 
@@ -424,7 +432,7 @@ function AdminDashboard() {
                             <span className={`badge ${getStatusBadge(poll.status)}`}>{poll.status}</span>
                           </td>
                           <td className="py-4 pr-4">
-                            <span className="font-mono text-sm text-offwhite">{voteCount}/{studentUsers.length}</span>
+                            <span className="font-mono text-sm text-offwhite">{voteCount}/{getEligibleVoterCount(poll)}</span>
                           </td>
                           <td className="py-4">
                             <div className="flex gap-2 flex-wrap">

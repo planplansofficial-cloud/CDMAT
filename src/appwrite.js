@@ -27,7 +27,21 @@ export function sanitizeId(id) {
 export function getPhotoUrl(fileId) {
   if (!fileId) return "";
   try {
-    return storage.getFilePreview(BUCKET_PHOTOS, fileId).toString();
+    return storage.getFilePreview(
+      BUCKET_PHOTOS,
+      fileId,
+      200,  // width
+      200,  // height
+      undefined, // gravity
+      80,   // quality
+      0,    // borderWidth
+      "",   // borderColor
+      0,    // borderRadius
+      1,    // opacity
+      0,    // rotation
+      "ffffff", // background
+      "webp"  // output
+    ).toString();
   } catch {
     return "";
   }

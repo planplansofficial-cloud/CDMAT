@@ -51,13 +51,14 @@ export async function hashUserId(userId) {
 
 /**
  * Hash a vote choice ID so the stored value is opaque.
- * Uses the pattern: SHA-256(choiceId + pollId)
+ * Truncated to 48 chars to fit Appwrite string attribute limits.
  * @param {string} choiceId  e.g. "opt_1"
  * @param {string} pollId
  * @returns {Promise<string>}
  */
 export async function hashChoiceId(choiceId, pollId) {
-  return sha256(choiceId + pollId);
+  const full = await sha256(choiceId + pollId);
+  return full.slice(0, 48);
 }
 
 /**
