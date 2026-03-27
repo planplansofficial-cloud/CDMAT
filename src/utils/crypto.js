@@ -59,3 +59,16 @@ export async function hashUserId(userId) {
 export async function hashChoiceId(choiceId, pollId) {
   return sha256(choiceId + pollId);
 }
+
+/**
+ * Generate a deterministic, Appwrite-safe vote document ID.
+ * Always starts with 'v' (letter) so Appwrite accepts it.
+ * Same userId + pollId always produces the same ID — guarantees one-time voting.
+ * @param {string} userId
+ * @param {string} pollId
+ * @returns {Promise<string>}
+ */
+export async function generateVoteId(userId, pollId) {
+  const hash = await sha256(userId + "::" + pollId);
+  return "v" + hash.slice(0, 31);
+}

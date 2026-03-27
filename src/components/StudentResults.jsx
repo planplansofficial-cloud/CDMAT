@@ -1,10 +1,23 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, Query, sanitizeId, getPhotoUrl } from "../appwrite";
-import { hashChoiceId } from "../utils/crypto";
+import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, Query, getPhotoUrl } from "../appwrite";
+import { hashChoiceId, generateVoteId } from "../utils/crypto";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
+
+function SafeImg({ src, alt, className, fallback }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return fallback;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 function StudentResults() {
   const { pollId } = useParams();
@@ -33,10 +46,10 @@ function StudentResults() {
         setPoll(pollData);
 
         try {
-          const voteId = sanitizeId(`${user.id}_${pollId}`);
+          const voteId = await generateVoteId(user.id, pollId);
           await databases.getDocument(DATABASE_ID, COLLECTION_VOTES, voteId);
           setHasVoted(true);
-        } catch (e) {
+        } catch {
           setHasVoted(false);
         }
 
@@ -70,7 +83,7 @@ function StudentResults() {
           };
         }
         setResults(resultMap);
-      } catch (e) {
+      } catch {
         navigate("/student");
       }
     };
@@ -123,6 +136,12 @@ function StudentResults() {
 
   const sortedResults = results ? Object.values(results).sort((a, b) => b.votes - a.votes) : [];
 
+  const fallbackAvatar = (name) => (
+    <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-lg">
+      {(name || "?").charAt(0)}
+    </div>
+  );
+
   return (
     <div className="min-h-screen p-4 md:p-8 animate-fade-in-up">
       <div className="max-w-3xl mx-auto">
@@ -150,13 +169,12 @@ function StudentResults() {
             {sortedResults.map((opt, index) => (
               <div key={opt.id} className={`card ${index === 0 ? "border-gold/50" : ""}`}>
                 <div className="flex items-center gap-4 mb-3">
-                  {opt.photoUrl ? (
-                    <img src={getPhotoUrl(opt.photoUrl)} alt={opt.name} className="w-12 h-12 rounded-full object-cover border border-gold/30" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-lg">
-                      {opt.name?.charAt(0)}
-                    </div>
-                  )}
+                  <SafeImg
+                    src={getPhotoUrl(opt.photoUrl)}
+                    alt={opt.name}
+                    className="w-12 h-12 rounded-full object-cover border border-gold/30"
+                    fallback={fallbackAvatar(opt.name)}
+                  />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h4 className="font-heading text-lg font-semibold text-offwhite">{opt.name}</h4>

@@ -2,11 +2,24 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Client } from "appwrite";
 import { useAuth } from "../context/AuthContext";
-import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG, ID, Query, sanitizeId, getPhotoUrl } from "../appwrite";
+import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG, ID, Query, getPhotoUrl } from "../appwrite";
 import { validateVote } from "../utils/validate";
-import { hashChoiceId, hashUserId } from "../utils/crypto";
+import { hashChoiceId, hashUserId, generateVoteId } from "../utils/crypto";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
+
+function SafeImg({ src, alt, className, fallback }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return fallback;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 function StudentVote() {
   const { pollId } = useParams();
@@ -23,6 +36,7 @@ function StudentVote() {
   const [submitting, setSubmitting] = useState(false);
   const [voted, setVoted] = useState(false);
   const [pollClosed, setPollClosed] = useState(false);
+  const [voteError, setVoteError] = useState("");
 
   const parseOptions = (poll) => {
     if (typeof poll.options === "string") {
@@ -41,35 +55,40 @@ function StudentVote() {
         if (data.status === "closed" || data.status === "revealed") {
           setPollClosed(true);
         }
-      } catch (e) {
+      } catch {
         navigate("/student");
       }
     };
     loadPoll();
 
-    const client = new Client()
-      .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
-      .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
+    let unsub;
+    try {
+      const client = new Client()
+        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)
+        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
 
-    const unsubscribe = client.subscribe(
-      `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents.${pollId}`,
-      (response) => {
-        if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-          loadPoll();
+      unsub = client.subscribe(
+        `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents.${pollId}`,
+        (response) => {
+          if (response.events.includes("databases.*.collections.*.documents.*.update")) {
+            loadPoll();
+          }
         }
-      }
-    );
+      );
+    } catch {
+      // Realtime unavailable — poll won't auto-refresh
+    }
 
-    return () => unsubscribe();
+    return () => { if (typeof unsub === "function") unsub(); };
   }, [pollId, navigate]);
 
   useEffect(() => {
     const checkVote = async () => {
       try {
-        const voteId = sanitizeId(`${user.id}_${pollId}`);
+        const voteId = await generateVoteId(user.id, pollId);
         await databases.getDocument(DATABASE_ID, COLLECTION_VOTES, voteId);
         setHasVoted(true);
-      } catch (e) {
+      } catch {
         setHasVoted(false);
       }
     };
@@ -77,29 +96,29 @@ function StudentVote() {
   }, [user.id, pollId]);
 
   useEffect(() => {
-    if (showConfirm && countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-    if (countdown === 0) {
+    if (!showConfirm) return;
+    if (countdown <= 0) {
       setCanConfirm(true);
+      return;
     }
+    const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    return () => clearTimeout(timer);
   }, [showConfirm, countdown]);
 
   const handleVote = async () => {
     if (!selected || submitting) return;
+    setVoteError("");
 
-    // Validate selection against poll options
     const validResult = validateVote(selected, poll.options || []);
     if (!validResult.valid) {
-      console.error("Vote validation failed:", validResult.error);
+      setVoteError(validResult.error);
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const voteId = sanitizeId(`${user.id}_${pollId}`);
+      const voteId = await generateVoteId(user.id, pollId);
       const choiceLabel = poll.mode === "candidate"
         ? `${selected.name} (Roll ${selected.roll})`
         : selected.text;
@@ -119,24 +138,35 @@ function StudentVote() {
         }
       );
 
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTION_VOTE_LOG,
-        ID.unique(),
-        {
-          userHash: hashedUserHash,
-          pollId: pollId,
-          pollTitle: poll.title,
-          choiceId: hashedChoiceId,
-          choiceLabel: choiceLabel,
-          timestamp: new Date().toISOString(),
-        }
-      );
+      try {
+        await databases.createDocument(
+          DATABASE_ID,
+          COLLECTION_VOTE_LOG,
+          ID.unique(),
+          {
+            userHash: hashedUserHash,
+            pollId: pollId,
+            pollTitle: poll.title,
+            choiceId: hashedChoiceId,
+            choiceLabel: choiceLabel,
+            timestamp: new Date().toISOString(),
+          }
+        );
+      } catch {
+        // VoteLog is audit-only — vote itself is already recorded
+      }
 
       setVoted(true);
       setShowConfirm(false);
     } catch (err) {
-      console.error("Vote failed:", err);
+      const msg = err?.message || "";
+      if (msg.includes("already exists") || err?.code === 409) {
+        // Already voted — show as voted
+        setHasVoted(true);
+        setShowConfirm(false);
+      } else {
+        setVoteError("Failed to submit vote. Please try again.");
+      }
       setSubmitting(false);
     }
   };
@@ -183,6 +213,12 @@ function StudentVote() {
     );
   }
 
+  const fallbackAvatar = (name) => (
+    <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-lg">
+      {(name || "?").charAt(0)}
+    </div>
+  );
+
   return (
     <div className="min-h-screen p-4 md:p-8 animate-fade-in-up">
       <div className="max-w-3xl mx-auto">
@@ -221,17 +257,12 @@ function StudentVote() {
                   }`}
                 >
                   <div className="flex items-center gap-4">
-                    {opt.photoUrl ? (
-                      <img
-                        src={getPhotoUrl(opt.photoUrl)}
-                        alt={opt.name}
-                        className="w-12 h-12 rounded-full object-cover border border-gold/30"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-lg">
-                        {opt.name.charAt(0)}
-                      </div>
-                    )}
+                    <SafeImg
+                      src={getPhotoUrl(opt.photoUrl)}
+                      alt={opt.name}
+                      className="w-12 h-12 rounded-full object-cover border border-gold/30"
+                      fallback={fallbackAvatar(opt.name)}
+                    />
                     <div>
                       <p className="font-heading font-semibold text-offwhite">{opt.name}</p>
                       <p className="font-mono text-sm text-muted">Roll: {opt.roll}</p>
@@ -277,6 +308,7 @@ function StudentVote() {
               setShowConfirm(true);
               setCountdown(3);
               setCanConfirm(false);
+              setVoteError("");
             }}
             disabled={!selected}
             className="btn-gold px-8 py-3 text-lg"
@@ -301,9 +333,14 @@ function StudentVote() {
             <p className="text-muted text-sm mb-4">
               This action is <strong className="text-crimson">irreversible</strong>. You will not be able to change your vote.
             </p>
+            {voteError && (
+              <div className="bg-crimson/20 border border-crimson/40 rounded-lg px-4 py-3 mb-4 text-sm text-red-300 font-mono">
+                {voteError}
+              </div>
+            )}
             <div className="flex gap-3">
               <button
-                onClick={() => setShowConfirm(false)}
+                onClick={() => { setShowConfirm(false); setVoteError(""); }}
                 className="btn-outline flex-1"
                 disabled={submitting}
               >
