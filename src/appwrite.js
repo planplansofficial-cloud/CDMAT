@@ -17,7 +17,12 @@ export const BUCKET_PHOTOS = "candidate-photos";
 export { ID, Query };
 
 export function sanitizeId(id) {
-  return id.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const cleaned = id.replace(/[^a-zA-Z0-9._-]/g, "-");
+  // Appwrite document IDs must start with a letter
+  if (/^[^a-zA-Z]/.test(cleaned)) {
+    return "u" + cleaned;
+  }
+  return cleaned;
 }
 
 export function getPhotoUrl(fileId) {

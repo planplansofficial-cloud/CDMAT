@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Client } from "appwrite";
 import { useAuth } from "../context/AuthContext";
-import { databases, storage, DATABASE_ID, COLLECTION_USERS, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG, BUCKET_PHOTOS, ID, Query, sanitizeId, getPhotoUrl } from "../appwrite";
+import { databases, storage, DATABASE_ID, COLLECTION_USERS, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG, BUCKET_PHOTOS, ID, Query, getPhotoUrl } from "../appwrite";
 import { seedUsers } from "../seed";
 import { validatePollCreate, validatePhotoUpload, sanitizeText } from "../utils/validate";
 import { pollCreateLimiter, uploadLimiter, formatCooldown } from "../utils/rateLimit";
+import { hashPassword, hashUserId } from "../utils/crypto";
 import Logo from "./Logo";
 
 function AdminDashboard() {
@@ -28,6 +29,18 @@ function AdminDashboard() {
   const [polls, setPolls] = useState([]);
   const [users, setUsers] = useState([]);
   const [voteLogs, setVoteLogs] = useState([]);
+  const [userHashMap, setUserHashMap] = useState({});
+
+  useEffect(() => {
+    const buildHashMap = async () => {
+      const map = {};
+      for (const u of users) {
+        map[u.id] = await hashUserId(u.id);
+      }
+      setUserHashMap(map);
+    };
+    if (users.length > 0) buildHashMap();
+  }, [users]);
 
   useEffect(() => {
     const checkSeed = async () => {
@@ -192,7 +205,7 @@ function AdminDashboard() {
       description: sanitizeText(pollDesc),
       mode: pollMode,
       options,
-      visibleOptionCount,
+      visibleOptionCount: visibleCount,
     });
     if (!validation.valid) {
       setCreateError(validation.error);
@@ -211,7 +224,7 @@ function AdminDashboard() {
           status: "draft",
           createdAt: new Date().toISOString(),
           options: JSON.stringify(options),
-          visibleOptionCount: pollMode === "decision" ? visibleOptionCount : 0,
+          visibleOptionCount: pollMode === "decision" ? visibleCount : 0,
         }
       );
 
@@ -255,11 +268,12 @@ function AdminDashboard() {
           [Query.equal("userId", userId)]
         );
         if (result.total > 0) {
+          const hashedDefault = await hashPassword(defaultPwd);
           await databases.updateDocument(
             DATABASE_ID,
             COLLECTION_USERS,
             result.documents[0].$id,
-            { password: defaultPwd, hasChangedPassword: false }
+            { password: hashedDefault, hasChangedPassword: false }
           );
         }
       } catch (e) {
@@ -290,13 +304,6 @@ function AdminDashboard() {
   const getStatusBadge = (status) => {
     const map = { draft: "badge-draft", open: "badge-open", closed: "badge-closed", revealed: "badge-revealed" };
     return map[status] || "badge-draft";
-  };
-
-  const parseOptions = (poll) => {
-    if (typeof poll.options === "string") {
-      try { return JSON.parse(poll.options); } catch { return []; }
-    }
-    return poll.options || [];
   };
 
   const getVoteCountForPoll = (pollId) => voteLogs.filter((l) => l.pollId === pollId).length;
@@ -565,7 +572,7 @@ function AdminDashboard() {
                         {openPolls.length > 0 && (
                           <td className="py-3 pr-4">
                             {openPolls.map((p) => {
-                              const hasVoted = voteLogs.some((l) => l.pollId === p.id && l.userHash === btoa(u.id).slice(0, 8));
+                              const hasVoted = voteLogs.some((l) => l.pollId === p.id && l.userHash === userHashMap[u.id]);
                               return (
                                 <span key={p.id} className={`inline-block mr-2 text-xs font-mono px-2 py-0.5 rounded ${hasVoted ? "bg-success/20 text-green-400" : "bg-muted/20 text-muted"}`}>
                                   {hasVoted ? "Voted" : "Not voted"}

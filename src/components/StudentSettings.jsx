@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { databases, DATABASE_ID, COLLECTION_USERS, Query } from "../appwrite";
-import { validatePasswordChange, sanitizeText } from "../utils/validate";
+import { validatePasswordChange } from "../utils/validate";
 import { passwordLimiter, formatCooldown } from "../utils/rateLimit";
+import { hashPassword } from "../utils/crypto";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
 
@@ -58,18 +59,20 @@ function StudentSettings() {
 
       const userDoc = result.documents[0];
 
-      if (userDoc.password !== currentPassword) {
+      const hashedCurrent = await hashPassword(currentPassword);
+      if (userDoc.password !== hashedCurrent) {
         passwordLimiter.recordFailure(user.id);
         setError("Current password is incorrect");
         return;
       }
 
+      const hashedNew = await hashPassword(newPassword);
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTION_USERS,
         userDoc.$id,
         {
-          password: newPassword,
+          password: hashedNew,
           hasChangedPassword: true,
         }
       );

@@ -5,18 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Security Headers (client-side; also enforce server-side via Vercel/netlify.toml) -->
+    <!-- Security Headers -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
     <!--
-      CSP: locked down to known origins.
-      - connect-src: Appwrite endpoint + Google Fonts
-      - style-src: Google Fonts stylesheet + inline (Tailwind JIT)
-      - font-src: Google Fonts
-      - img-src: data URIs + Appwrite storage (candidate photos)
-      - script-src: self only
+      CSP: allows Appwrite (HTTP + WebSocket) and Google Fonts.
+      - connect-src: Appwrite endpoint (REST + realtime SSE/WebSocket)
+      - img-src: Appwrite storage for candidate photos
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -26,7 +23,7 @@
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' https://fonts.gstatic.com;
         img-src 'self' data: https://fra.cloud.appwrite.io;
-        connect-src 'self' https://fra.cloud.appwrite.io https://fonts.googleapis.com https://fonts.gstatic.com;
+        connect-src 'self' https://fra.cloud.appwrite.io wss://fra.cloud.appwrite.io https://fonts.googleapis.com https://fonts.gstatic.com;
         frame-ancestors 'none';
         base-uri 'self';
         form-action 'self';

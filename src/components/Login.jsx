@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { validateLogin, sanitizeText } from "../utils/validate";
@@ -14,10 +14,11 @@ function Login() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
-  if (user) {
-    navigate(user.role === "admin" ? "/admin" : "/student", { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      navigate(user.role === "admin" ? "/admin" : "/student", { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

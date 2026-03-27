@@ -1,4 +1,5 @@
 import { databases, DATABASE_ID, COLLECTION_USERS, ID, sanitizeId } from "./appwrite";
+import { hashPassword } from "./utils/crypto";
 
 const USERS = [
   { id: "admin@123", role: "admin", password: "123456", defaultPassword: "123456" },
@@ -53,21 +54,34 @@ const USERS = [
 ];
 
 export async function seedUsers() {
+  let created = 0;
+  let skipped = 0;
   for (const user of USERS) {
     const docId = sanitizeId(user.id);
-    await databases.createDocument(
-      DATABASE_ID,
-      COLLECTION_USERS,
-      docId,
-      {
-        userId: user.id,
-        role: user.role,
-        password: user.password,
-        defaultPassword: user.defaultPassword,
-        hasChangedPassword: false,
-        lastLogin: null,
+    const hashedPassword = await hashPassword(user.password);
+    try {
+      await databases.createDocument(
+        DATABASE_ID,
+        COLLECTION_USERS,
+        docId,
+        {
+          userId: user.id,
+          role: user.role,
+          password: hashedPassword,
+          defaultPassword: user.defaultPassword,
+          hasChangedPassword: false,
+          lastLogin: null,
+        }
+      );
+      created++;
+    } catch (err) {
+      // 409 = document already exists — skip gracefully on re-run
+      if (err?.code === 409) {
+        skipped++;
+      } else {
+        throw err;
       }
-    );
+    }
   }
-  console.log("Seeded all users");
+  console.log(`Seeded users: ${created} created, ${skipped} skipped (already exist)`);
 }

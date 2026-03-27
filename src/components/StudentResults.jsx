@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, Query, sanitizeId, getPhotoUrl } from "../appwrite";
+import { hashChoiceId } from "../utils/crypto";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
 
@@ -16,11 +17,19 @@ function StudentResults() {
   const [totalVotes, setTotalVotes] = useState(0);
   const [hasVoted, setHasVoted] = useState(false);
 
+  const parseOptions = (poll) => {
+    if (typeof poll.options === "string") {
+      try { return JSON.parse(poll.options); } catch { return []; }
+    }
+    return poll.options || [];
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         const pollDoc = await databases.getDocument(DATABASE_ID, COLLECTION_POLLS, pollId);
         const pollData = { id: pollDoc.$id, ...pollDoc };
+        pollData.options = parseOptions(pollData);
         setPoll(pollData);
 
         try {
@@ -50,15 +59,16 @@ function StudentResults() {
         setTotalVotes(total);
 
         const resultMap = {};
-        (pollData.options || []).forEach((opt) => {
+        for (const opt of pollData.options) {
+          const hashedId = await hashChoiceId(opt.id, pollId);
           resultMap[opt.id] = {
             ...opt,
-            votes: voteCounts[opt.id] || 0,
+            votes: voteCounts[hashedId] || 0,
             percentage: total > 0
-              ? Math.round(((voteCounts[opt.id] || 0) / total) * 100)
+              ? Math.round(((voteCounts[hashedId] || 0) / total) * 100)
               : 0,
           };
-        });
+        }
         setResults(resultMap);
       } catch (e) {
         navigate("/student");
