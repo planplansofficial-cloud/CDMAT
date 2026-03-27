@@ -31,10 +31,14 @@ function StudentResults() {
   const [hasVoted, setHasVoted] = useState(false);
 
   const parseOptions = (poll) => {
-    if (typeof poll.options === "string") {
-      try { return JSON.parse(poll.options); } catch { return []; }
+    let raw = poll.options;
+    if (typeof raw === "string") {
+      try { raw = JSON.parse(raw); } catch { return []; }
     }
-    return poll.options || [];
+    if (raw && typeof raw === "object" && Array.isArray(raw.options)) {
+      return raw.options;
+    }
+    return Array.isArray(raw) ? raw : [];
   };
 
   useEffect(() => {

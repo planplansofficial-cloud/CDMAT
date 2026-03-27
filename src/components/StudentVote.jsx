@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { databases, DATABASE_ID, COLLECTION_POLLS, COLLECTION_VOTES, COLLECTION_VOTE_LOG, ID, Query, getPhotoUrl } from "../appwrite";
 import { validateVote } from "../utils/validate";
 import { hashChoiceId, hashUserId, generateVoteId } from "../utils/crypto";
+import { getUserGroup } from "../utils/groups";
 import { useAntiCheat } from "../hooks/useAntiCheat";
 import Logo from "./Logo";
 
@@ -37,12 +38,30 @@ function StudentVote() {
   const [voted, setVoted] = useState(false);
   const [pollClosed, setPollClosed] = useState(false);
   const [voteError, setVoteError] = useState("");
+  const [notEligible, setNotEligible] = useState(false);
 
   const parseOptions = (poll) => {
-    if (typeof poll.options === "string") {
-      try { return JSON.parse(poll.options); } catch { return []; }
+    let raw = poll.options;
+    if (typeof raw === "string") {
+      try { raw = JSON.parse(raw); } catch { return []; }
     }
-    return poll.options || [];
+    // New format: {options: [...], allowedGroups: [...]}
+    if (raw && typeof raw === "object" && Array.isArray(raw.options)) {
+      return raw.options;
+    }
+    // Old format: just an array
+    return Array.isArray(raw) ? raw : [];
+  };
+
+  const parseAllowedGroups = (poll) => {
+    let raw = poll.options;
+    if (typeof raw === "string") {
+      try { raw = JSON.parse(raw); } catch { return ["C", "D"]; }
+    }
+    if (raw && typeof raw === "object" && Array.isArray(raw.allowedGroups)) {
+      return raw.allowedGroups;
+    }
+    return ["C", "D"]; // Default: all groups
   };
 
   useEffect(() => {
@@ -54,6 +73,12 @@ function StudentVote() {
         setPoll(data);
         if (data.status === "closed" || data.status === "revealed") {
           setPollClosed(true);
+        }
+        // Check group eligibility
+        const groups = parseAllowedGroups(data);
+        const userGroup = getUserGroup(user.id);
+        if (userGroup && user.role === "student" && groups.length > 0 && !groups.includes(userGroup)) {
+          setNotEligible(true);
         }
       } catch {
         navigate("/student");
@@ -152,20 +177,20 @@ function StudentVote() {
             timestamp: new Date().toISOString(),
           }
         );
-      } catch {
-        // VoteLog is audit-only — vote itself is already recorded
+      } catch (logErr) {
+        console.warn("VoteLog failed (non-critical):", logErr?.message, logErr?.code);
       }
 
       setVoted(true);
       setShowConfirm(false);
     } catch (err) {
+      console.error("Vote failed:", { message: err?.message, code: err?.code, type: err?.type, response: err?.response });
       const msg = err?.message || "";
       if (msg.includes("already exists") || err?.code === 409) {
-        // Already voted — show as voted
         setHasVoted(true);
         setShowConfirm(false);
       } else {
-        setVoteError("Failed to submit vote. Please try again.");
+        setVoteError(`Vote failed: ${err?.message || "Unknown error"} (code: ${err?.code || "none"})`);
       }
       setSubmitting(false);
     }
@@ -205,6 +230,23 @@ function StudentVote() {
             Voting is Closed
           </h2>
           <p className="text-muted mb-6">This poll is no longer accepting votes.</p>
+          <button onClick={() => navigate("/student")} className="btn-gold">
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (notEligible) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 animate-fade-in-up">
+        <div className="text-center">
+          <div className="text-6xl mb-6 text-muted">&#128683;</div>
+          <h2 className="font-heading text-2xl font-bold text-offwhite mb-3">
+            Not Eligible
+          </h2>
+          <p className="text-muted mb-6">Your group (Group {getUserGroup(user.id)}) is not eligible for this poll.</p>
           <button onClick={() => navigate("/student")} className="btn-gold">
             Back to Home
           </button>

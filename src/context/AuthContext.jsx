@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { databases, DATABASE_ID, COLLECTION_USERS, Query } from "../appwrite";
 import { hashPassword } from "../utils/crypto";
+import { getUserGroup } from "../utils/groups";
 
 const AuthContext = createContext(null);
 
@@ -41,6 +42,7 @@ export function AuthProvider({ children }) {
     const sessionUser = {
       id: userDoc.userId,
       role: userDoc.role,
+      group: getUserGroup(userDoc.userId),
       hasChangedPassword: userDoc.hasChangedPassword,
     };
 

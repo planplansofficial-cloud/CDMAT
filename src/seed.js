@@ -3,6 +3,7 @@ import { hashPassword } from "./utils/crypto";
 
 const USERS = [
   { id: "admin@123", role: "admin", password: "123456", defaultPassword: "123456" },
+  // Group C: 081bct049 – 081bct072 (24 students)
   { id: "081bct049", role: "student", password: "Ax-bolt-312", defaultPassword: "Ax-bolt-312" },
   { id: "081bct050", role: "student", password: "Zr-wave-857", defaultPassword: "Zr-wave-857" },
   { id: "081bct051", role: "student", password: "Qn-rock-421", defaultPassword: "Qn-rock-421" },
@@ -27,6 +28,7 @@ const USERS = [
   { id: "081bct070", role: "student", password: "Ai-pine-655", defaultPassword: "Ai-pine-655" },
   { id: "081bct071", role: "student", password: "Cj-stark-328", defaultPassword: "Cj-stark-328" },
   { id: "081bct072", role: "student", password: "Dv-haze-904", defaultPassword: "Dv-haze-904" },
+  // Group D: 081bct073 – 081bct096 (24 students)
   { id: "081bct073", role: "student", password: "Mr-echo-471", defaultPassword: "Mr-echo-471" },
   { id: "081bct074", role: "student", password: "Ip-salt-236", defaultPassword: "Ip-salt-236" },
   { id: "081bct075", role: "student", password: "Tl-grove-789", defaultPassword: "Tl-grove-789" },
@@ -75,7 +77,6 @@ export async function seedUsers() {
       );
       created++;
     } catch (err) {
-      // 409 = document already exists — skip gracefully on re-run
       if (err?.code === 409) {
         skipped++;
       } else {
