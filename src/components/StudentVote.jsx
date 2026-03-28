@@ -256,7 +256,7 @@ function StudentVote() {
   }
 
   const fallbackAvatar = (name) => (
-    <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-lg">
+    <div className="w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-xl">
       {(name || "?").charAt(0)}
     </div>
   );
@@ -302,7 +302,7 @@ function StudentVote() {
                     <SafeImg
                       src={getPhotoUrl(opt.photoUrl)}
                       alt={opt.name}
-                      className="w-12 h-12 rounded-full object-cover border border-gold/30"
+                      className="w-16 h-16 rounded-full object-cover border border-gold/30"
                       fallback={fallbackAvatar(opt.name)}
                     />
                     <div>

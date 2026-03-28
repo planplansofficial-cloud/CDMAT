@@ -540,11 +540,11 @@ function AdminDashboard() {
                           <div className="flex-shrink-0">
                             {c.photoUrl ? (
                               <div className="relative">
-                                <img src={getPhotoUrl(c.photoUrl)} alt={c.name} className="w-16 h-16 rounded-full object-cover border border-gold/30" onError={(e) => { e.target.style.display = "none"; }} />
+                                <img src={getPhotoUrl(c.photoUrl)} alt={c.name} className="w-20 h-20 rounded-full object-cover border border-gold/30" onError={(e) => { e.target.style.display = "none"; }} />
                                 <button onClick={() => updateCandidate(i, "photoUrl", "")} className="absolute -top-1 -right-1 w-5 h-5 bg-crimson rounded-full text-white text-xs flex items-center justify-center hover:bg-red-700">&times;</button>
                               </div>
                             ) : (
-                              <label className="w-16 h-16 rounded-full border-2 border-dashed border-gold/30 flex flex-col items-center justify-center cursor-pointer hover:border-gold/60 transition-colors">
+                              <label className="w-20 h-20 rounded-full border-2 border-dashed border-gold/30 flex flex-col items-center justify-center cursor-pointer hover:border-gold/60 transition-colors">
                                 {uploadingPhoto === i ? (
                                   <span className="text-gold text-xs animate-pulse">...</span>
                                 ) : (

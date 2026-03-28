@@ -141,7 +141,7 @@ function StudentResults() {
   const sortedResults = results ? Object.values(results).sort((a, b) => b.votes - a.votes) : [];
 
   const fallbackAvatar = (name) => (
-    <div className="w-12 h-12 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-lg">
+    <div className="w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold font-heading font-bold text-xl">
       {(name || "?").charAt(0)}
     </div>
   );
@@ -176,7 +176,7 @@ function StudentResults() {
                   <SafeImg
                     src={getPhotoUrl(opt.photoUrl)}
                     alt={opt.name}
-                    className="w-12 h-12 rounded-full object-cover border border-gold/30"
+                    className="w-16 h-16 rounded-full object-cover border border-gold/30"
                     fallback={fallbackAvatar(opt.name)}
                   />
                   <div className="flex-1">
