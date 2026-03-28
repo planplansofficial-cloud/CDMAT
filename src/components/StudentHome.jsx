@@ -37,7 +37,7 @@ function StudentHome() {
       unsub = client.subscribe(
         `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
         () => {
-          loadPolls();
+          try { loadPolls(); } catch { /* ignore */ }
         }
       );
     } catch {

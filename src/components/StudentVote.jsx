@@ -93,15 +93,13 @@ function StudentVote() {
         .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID);
 
       unsub = client.subscribe(
-        `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents.${pollId}`,
-        (response) => {
-          if (response.events.includes("databases.*.collections.*.documents.*.update")) {
-            loadPoll();
-          }
+        `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
+        () => {
+          try { loadPoll(); } catch { /* ignore */ }
         }
       );
     } catch {
-      // Realtime unavailable — poll won't auto-refresh
+      // Realtime unavailable
     }
 
     return () => { if (typeof unsub === "function") unsub(); };

@@ -92,15 +92,15 @@ function AdminDashboard() {
 
       unsub1 = client.subscribe(
         `databases.${DATABASE_ID}.collections.${COLLECTION_POLLS}.documents`,
-        () => loadAll()
+        () => { try { loadAll(); } catch { /* ignore */ } }
       );
       unsub2 = client.subscribe(
         `databases.${DATABASE_ID}.collections.${COLLECTION_USERS}.documents`,
-        () => loadAll()
+        () => { try { loadAll(); } catch { /* ignore */ } }
       );
       unsub3 = client.subscribe(
         `databases.${DATABASE_ID}.collections.${COLLECTION_VOTE_LOG}.documents`,
-        () => loadAll()
+        () => { try { loadAll(); } catch { /* ignore */ } }
       );
     } catch {
       // Realtime unavailable — data refreshes on manual actions
