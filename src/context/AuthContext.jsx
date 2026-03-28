@@ -2,23 +2,36 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { databases, DATABASE_ID, COLLECTION_USERS, Query } from "../appwrite";
 import { hashPassword } from "../utils/crypto";
 import { getUserGroup } from "../utils/groups";
+import { signJwt, verifyJwt } from "../utils/jwt";
 
 const AuthContext = createContext(null);
+const JWT_STORAGE_KEY = "cdmat_token";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("cdmat_user");
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        sessionStorage.removeItem("cdmat_user");
+    const restoreSession = async () => {
+      const token = sessionStorage.getItem(JWT_STORAGE_KEY);
+      if (!token) {
+        setLoading(false);
+        return;
       }
-    }
-    setLoading(false);
+      try {
+        const payload = await verifyJwt(token);
+        setUser({
+          id: payload.sub,
+          role: payload.role,
+          group: payload.group,
+          hasChangedPassword: payload.hasChangedPassword,
+        });
+      } catch {
+        sessionStorage.removeItem(JWT_STORAGE_KEY);
+      }
+      setLoading(false);
+    };
+    restoreSession();
   }, []);
 
   const login = async (id, password) => {
@@ -57,19 +70,31 @@ export function AuthProvider({ children }) {
       // non-critical
     }
 
-    sessionStorage.setItem("cdmat_user", JSON.stringify(sessionUser));
+    const token = await signJwt({
+      sub: sessionUser.id,
+      role: sessionUser.role,
+      group: sessionUser.group,
+      hasChangedPassword: sessionUser.hasChangedPassword,
+    });
+    sessionStorage.setItem(JWT_STORAGE_KEY, token);
     setUser(sessionUser);
     return sessionUser;
   };
 
   const logout = () => {
-    sessionStorage.removeItem("cdmat_user");
+    sessionStorage.removeItem(JWT_STORAGE_KEY);
     setUser(null);
   };
 
-  const updateUser = (updates) => {
+  const updateUser = async (updates) => {
     const updated = { ...user, ...updates };
-    sessionStorage.setItem("cdmat_user", JSON.stringify(updated));
+    const token = await signJwt({
+      sub: updated.id,
+      role: updated.role,
+      group: updated.group,
+      hasChangedPassword: updated.hasChangedPassword,
+    });
+    sessionStorage.setItem(JWT_STORAGE_KEY, token);
     setUser(updated);
   };
 
